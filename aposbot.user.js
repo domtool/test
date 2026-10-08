@@ -2660,11 +2660,6 @@ const CASCADE_RANGE = 900;
  * colour has to be to say the enemy is being fed, how much of it says so, and
  * how much of the feeder counts once it does. Then how far off the feeder can
  * stand.
- *
- * A threat is not a fixed size. One with a smaller player under its mouth, or
- * a teammate pouring mass into it, is bigger a second from now than it is on
- * this tick, and a second is what a split takes. A transfer loses about a
- * quarter of what is thrown, and the rest of the feeder is what is coming.
  */
 const FORESEE_RANGE = 200;
 const FEED_RANGE = 300;
@@ -2674,14 +2669,6 @@ const FEEDER_RANGE = 700;
 
 // ------------------------------------------------------------- the weighting
 
-/**
- * What each kind of thing is worth in the one number every direction gets.
- *
- * Food is mass over distance, which is small, so it carries a scale to bring
- * it into the same range as the pushes. The rest are tuned against each other:
- * a threat one step inside its reach outscores any pile of pellets, and a wall
- * two cell-widths ahead outscores a threat that is still far off.
- */
 const FOOD_GAIN = 1000;
 const FOOD_SOFT = 400;
 const PREY_GAIN = 2.2;
@@ -2691,504 +2678,119 @@ const THREAT_WEIGHT = 500;
 const VIRUS_WEIGHT = 220;
 const WALL_WEIGHT = 260;
 
-/**
- * Room kept around a threat, past what it can reach, and how far outside that
- * the push starts.
- *
- * Squared rather than cubed over a shorter run, so the field is quiet until
- * somebody is genuinely close and then wins outright. Cubed over a long run
- * reads as reasonable and plays as a bot that grazes while a killer walks up
- * to it, since a pile of pellets outscores a push that gentle.
- */
 const THREAT_MARGIN = 120;
 const THREAT_BUFFER = 250;
-/**
- * How far ahead a threat is placed, in milliseconds along the way it is
- * going.
- *
- * Where something is standing is the wrong thing to steer around, since by
- * the time a heading is taken it has moved. A piece in flight from a split
- * covers most of its 710 in under a second, and a whale walking at us closes
- * the gap while we graze. So every threat that has been seen to move is read
- * where it will be, and how close it is comes from the nearer of the two.
- */
 const THREAT_LOOKAHEAD = 400;
-/**
- * How much nearer a threat that is closing on us is read along a heading,
- * in milliseconds of its closing speed.
- *
- * The sweep discounts a threat by how far down the heading it sits, so a
- * cell of a thousand a screen away costs about nothing, and a bot with
- * pellets on that side walks towards it to eat them. One closing at a
- * hundred and fifty a second is three hundred nearer by the time the
- * pellets are eaten, and a piece in flight from a split is on top of us.
- */
 const CLOSING_LEAD = 2000;
-/**
- * What being inside somebody's split range is worth next to being inside their
- * mouth. Splitting costs them half their mass and a merge timer, so most of
- * them will not do it for a crumb, while the ones who do end the game.
- */
 const SPLIT_FEAR = 0.45;
-/**
- * How much of that fear a cell that dwarfs us gets.
- *
- * Splitting costs half the mass and a merge timer, so it is spent on a meal
- * worth having: an eighth of them or more is one, a thirtieth is not, and
- * between the two the fear falls off in a straight line. A whale would rather
- * keep walking, which makes the space beside one safer than the space beside
- * something three times our size. Never nothing, since some of them split on
- * anything.
- */
 const SPLIT_BITE_FULL = 0.12;
 const SPLIT_BITE_NONE = 0.03;
 const SPLIT_FEAR_FLOOR = 0.2;
-/**
- * And what a mouthful sitting inside one is worth next to one in the open.
- *
- * The same discount the field applies, applied to the menu, so that a screen
- * with four big players on it still has something on it worth arriving at.
- */
 const SPLIT_SHUN = 0.4;
-/** How much a heading straight away from something beats one sideways past it. */
 const ESCAPE_LEAN = 0.15;
-/**
- * Above what speed, in units per millisecond, something closing on us is a
- * piece in flight rather than a cell walking. The smallest cell walks at under
- * 500 a second and a half thrown from a split starts well above it. Then what
- * crossing its line costs next to running along it.
- */
 const FLIGHT_SPEED = 0.5;
 const FLIGHT_CROSS = 0.5;
-/**
- * How far past its own edge a piece that eats a threat still covers one
- * standing behind it, and what the threat is worth once it does.
- *
- * A cell smaller than us is faster than us, so being in pieces is not the same
- * as being exposed in pieces. The crumbs can sit behind the big one, and
- * anything that wants a crumb has to come into the big one's mouth to reach
- * it, which is a trade we are happy with. Reading every piece on its own is
- * what has eight cells run from something one of them eats for lunch, and it
- * gives up the screen to do it.
- *
- * Half rather than nothing, because cover is read where everybody is standing
- * this tick and the piece it protects is the fast one that leaves first. A
- * fifth reads as the better bargain and plays worse, since the crumb it stopped
- * worrying about walks out from behind the cover on its own.
- */
 const COVER_MARGIN = 60;
 const COVER_DISCOUNT = 0.5;
-/**
- * Room kept around a virus we are big enough to pop on, and the band it pushes
- * over. Wider than a threat's, since a virus never moves and never chases, so
- * steering around one early costs nothing.
- */
+
 const VIRUS_MARGIN = 60;
 const VIRUS_BUFFER = 450;
-/**
- * A virus somebody is feeding, next to one that is sitting still: what being
- * in its line costs, as a multiple of the virus itself, and how far down the
- * line it reaches once it flies. It comes to us whether or not we go to it.
- */
 const SHOT_WEIGHT = 2;
 const SHOT_REACH = 900;
-/**
- * How far ahead a wall starts costing, how close it has to be before it shoves
- * back the way a threat does, and how much a chase widens both.
- *
- * The two do different jobs. Room left along a heading is what keeps an escape
- * from ending in a corner, while the shove is what keeps the bot off the rim: a
- * heading straight along the edge has the whole map ahead of it, so on room
- * alone it costs nothing.
- */
+
 const WALL_LOOKAHEAD = 500;
-/** How far inside the map a destination is kept. */
 const MAP_MARGIN = 20;
-/**
- * How near a wall our edge has to be before a destination past it slides
- * along it rather than stopping at it, and how much of a heading has to run
- * along the wall before that says which way to slide.
- */
 const WALL_TOUCH = 40;
 const SLIDE_LEAN = 0.15;
 const WALL_NEAR = 250;
 const WALL_SHOVE = 90;
 const WALL_PRESSURE = 2;
 
-/**
- * What open map is worth when there is nothing on the screen to eat, and how
- * much of it counts as open.
- *
- * Food is the whole of what pulls the bot anywhere, so an empty screen leaves
- * it holding whatever bearing it had until the map runs out, and then sliding
- * along the edge. A busy game empties the screen often, a dozen players strip
- * a patch in seconds, and the edge is where somebody bigger only has to walk
- * at you. So with nothing worth having on the screen, room is what is worth
- * having, and the heading with the most map ahead of it points back inside.
- *
- * It is only ever the tie-breaker: one pellet anywhere on the screen puts this
- * back to nothing, so it cannot cost a mouthful.
- */
 const ROAM_GAIN = 60;
 const ROAM_RANGE = 4000;
 
-/**
- * How close something that could eat one of our cells has to be before the
- * room a heading leaves us in is worth anything, what that room is worth when
- * it is right on top of us, and how far ahead a heading is judged to land.
- *
- * Being cornered is not something that happens at the corner. It is decided
- * while there is still room, by taking food that walks you into a smaller and
- * smaller pocket, and by the time the wall is close enough to push back the
- * only ways out run past the thing that has been herding you. So room stops
- * being free the moment something that can eat you is near, and stays free
- * every other time, which is most of the game.
- */
 const MENACE_RANGE = 1600;
 const ESCAPE_GAIN = 90;
 const ESCAPE_REACH = 3000;
-/**
- * How much map has to be left on the nearest side before the whole thing goes
- * quiet. Wide, because a corner is lost long before it is reached, and the
- * point is to be somewhere else while that still costs nothing.
- */
 const ESCAPE_BOX = 6000;
 
-/** Above this the bot is being chased rather than merely watched. */
 const FLEE_PRESSURE = 0.35;
-/** And above this, split pieces travel together rather than spread out. */
 const GATHER_PRESSURE = 0.1;
 
-/**
- * How far ahead the destination sits while the pieces are being brought back
- * together, as a share of how far out they are spread.
- *
- * Inside the group, since that is the whole trick: a pointer between two cells
- * is each of them told to go at the other, and they close the gap in the time
- * it would otherwise take them to drift into one.
- */
 const MERGE_PULL = 0.35;
-/**
- * How far outside our own edge the destination has to sit before the cell
- * counts as having somewhere to go.
- *
- * Only wide enough to survive a step, since the point of measuring it per
- * direction is to be able to aim at the thing rather than past it.
- */
 const CLEAR_MARGIN = 50;
 
-/** How much better a heading has to be before the bot turns onto it. */
 const TURN_MARGIN = 6;
 const TURN_MARGIN_SHARE = 0.08;
-/**
- * And how much more it has to be worth to turn round than to turn a little.
- *
- * Two patches either side of the cell trade places every time the near one
- * is eaten down a little, and every swap throws away the walk that was just
- * made, so a cell between two patches walks back and forth and eats neither.
- * Two threats either side do the same thing to the way out: whichever of the
- * two is pressing harder this tick owns the straight-away heading, and a cell
- * that answers each in turn runs north, then south, then north, which is a
- * cell standing still while both of them walk up to it. Turning back costs
- * the whole of the walk either way, so the margin grows with the angle turned
- * through, as a share of what the best heading is worth. A threat that turns
- * up ahead still gets answered, since a heading that now runs into a mouth
- * loses far more than any share of the best one.
- */
 const TURN_REVERSAL = 0.15;
-/**
- * How far off the heading the bot will look for something to aim at, how far
- * off it will follow what it already chose, and how much better a new one has
- * to be to take over.
- *
- * Holding the heading is not enough on its own. Two pellets either side of one
- * heading trade places on the smallest change, the aim swings between them by
- * the width of the cone, and a cell told to go left and right in turn stays
- * where it is.
- */
+
 const COMMIT_CONE = 0.82;
 const COMMIT_KEEP = 0.3;
 const COMMIT_SWITCH = 1.35;
-/**
- * What a mouthful off the line is worth next to one on it, as a power of the
- * cosine of the angle between them.
- *
- * The nearest thing in the cone is the wrong pick. Taken nearest first, a
- * patch is eaten by swinging from one edge of the cone to the other on every
- * pellet while the heading under the cone never moves, which is a cell that
- * looks unable to make its mind up. Cubed, a pellet at the edge of the cone
- * is worth about half of one dead ahead, so it is taken when it is a good
- * deal nearer and passed when it is not, and a patch is eaten by walking
- * through it.
- */
 const COMMIT_LEAN = 3;
 
-// ------------------------------------------------------------------ tactics
-
-/**
- * Cells we are willing to have out before a hunting split is a bad idea.
- *
- * Two, so that a hunt never leaves us in more than four. Eight pieces of
- * seventy each beside a player of a thousand are one split away from being
- * a meal, and whichever of them the half lands among, the rest are lunch for
- * it afterwards.
- */
 const SPLIT_MAX_CELLS = 2;
-/** Time between splits, and how straight we have to be aimed to take one. */
 const SPLIT_COOLDOWN = 900;
 const SPLIT_ALIGN = 0.97;
-/**
- * How much of a split's reach to bank on, and how fast a target has to be
- * going before throwing at it beats walking at it.
- *
- * The reach is short of the full 710 because the throw goes where the target
- * was going to be rather than where it is, and a metre short is the whole cost
- * with none of the meal. The speed is because a split buys nothing against
- * something that is not leaving: half the mass on two lines and a merge timer,
- * to arrive somewhere the cell was going to walk to anyway.
- */
 const SPLIT_TRUST = 0.9;
 const SPLIT_CHASE = 0.5;
-/**
- * How long a walk onto something standing still is worth taking before a
- * split is the better way there, in milliseconds.
- *
- * Standing still is not the same as staying still. Whoever it is looks up
- * eventually, and everything smaller than us is quicker than us, so a walk
- * that takes three seconds is three seconds for that to happen. A split lands
- * in one.
- */
 const SPLIT_WALK = 1500;
-/**
- * What prey that is leaving faster than we can follow is worth, as a share
- * of its mass.
- *
- * A cell smaller than us is quicker than us, so walking after one that is
- * running never ends. It is a walk across the screen that finishes with the
- * crumb still ahead and the pellets that were beside the cell behind it. A
- * few percent leaves it on the map as somewhere worth leaning towards and
- * takes it off the menu.
- */
 const PREY_FLEEING = 0.03;
-/**
- * How far ahead of a moving smaller player its pellets stop being ours, in
- * milliseconds of its travel, and what those are worth to us.
- */
 const GRAZE_LEAD = 1000;
 const GRAZE_DISCOUNT = 0.3;
-/**
- * How far off prey is worth the whole of itself, past which it fades with
- * the distance, and how far past a split's reach it is still the thing to
- * aim at rather than the pellets on the way to it.
- *
- * Mass over distance is the wrong shape at long range: a crumb two screens
- * away outscores every pellet beside the cell, and the cell walks a straight
- * line past all of them to get there. So far prey leans the heading and the
- * pellets along that heading are what the cell actually goes to, until the
- * prey is close enough that the next thing that happens to it is a split.
- */
 const PREY_REACH = 1200;
 const STRIKE_MARGIN = 200;
-/**
- * How far behind prey its ways out are looked at, over how many headings
- * either side of straight away from us, and how many of those have to be
- * shut before it counts as trapped.
- *
- * Somebody who cannot run is somebody who can be walked onto, and the map
- * edge is not the only thing that stops a run: a cell big enough to pop on a
- * virus cannot pass one either, so a field of them behind a player is a wall
- * with gaps.
- */
 const TRAP_RANGE = 350;
 const TRAP_SPAN = 4;
 const TRAP_STEP = Math.PI / 12;
 const TRAP_BLOCKED = 6;
-/**
- * The least a split has to stand to gain, as a share of the cell that throws
- * it. A crumb is not worth a merge timer, while a player broken into eight
- * crumbs lying together is, since a half landing among them takes the lot.
- */
 const SPLIT_WORTH = 0.06;
-/**
- * Room kept between where a half comes down and anybody who could eat it,
- * past their reach. The halves are apart for the whole merge timer, which is
- * over a minute at a couple of thousand mass, and a walk of a few seconds is
- * nothing next to that.
- */
 const SPLIT_CAUTION = 300;
-/** Threat pressure above which a hunting split is not worth what it risks. */
 const AGGRO_PRESSURE = 0.35;
 
-/**
- * How close to being eaten it has to be before splitting out is better than
- * running, and how far past a threat the line a half travels has to clear.
- *
- * A split is the only way to cover ground faster than the cell moves, so it is
- * the last thing left once the room has already gone. It is also half the mass
- * on each of two lines, so it is worth it only when standing still is worse:
- * pinned, in contact, and with a way out that does not go past the mouth.
- *
- * Pinned means different things depending on what is doing the pinning.
- * Something that can split onto us has the room gone the moment it is in
- * contact and we are against the map. Something that cannot is slower than we
- * are, so it only ever eats us by cutting a run off, and whether it can is
- * about where it stands, not about how much of us it is already covering.
- */
 const ESCAPE_CONTACT = 0.75;
 const ESCAPE_CLEAR = 60;
-/**
- * How far inside our own edge a mouth has to have closed before running has
- * stopped working, as a share of our radius.
- *
- * Room to run is not the only thing that runs out. Somebody who split onto us
- * arrives already overlapping, and from there the ground a run would cover is
- * ground there is no time to cover: the choice is half the mass thrown clear
- * or all of it swallowed. Measured off their edge against our centre, since
- * that is the gap the server closes to decide it.
- */
 const ESCAPE_SWALLOW = 0.5;
-/**
- * And how much faster than us it has to be coming before running is losing.
- *
- * Over one, since matching our speed is not gaining on us and half the reading
- * is a socket that talks 25 times a second being read by a loop that thinks 60
- * times a second. Us is the faster of what we measure and what the cell walks
- * at flat out: a cell turning round measures nearly still for a tick, and
- * nothing walking has caught it just because of that.
- */
 const ESCAPE_LOSING = 1.2;
-/** How much of a heading has to point away from it to count as running. */
 const ESCAPE_AWAY = 0.3;
-/** And how much of one may point at it before the throw is into the mouth. */
 const ESCAPE_INTO = 0.5;
-/**
- * The stride a chase is walked forward in, in units, when asking whether
- * something walking can cut a run off. The run is judged out to the same
- * reach an escape is.
- */
 const CHASE_STRIDE = 25;
 
-/** Mass we keep back, so feeding a virus never spends the game. */
 const POP_MIN_MASS = 280;
-/**
- * A player worth spending it on, and how far the virus may fly at them. A
- * fired virus is given a boost of 780 and stops there, so a shot lined up on
- * somebody further off than that is 144 mass thrown at nothing.
- */
 const POP_MIN_ENEMY = 150;
 const POP_RANGE = 900;
-/**
- * Going and making the line rather than waiting for one.
- *
- * Three moving things happening to fall on one line is not something to wait
- * for, and the far side of the virus from them is a place, so it can be walked
- * to. It is worth the walk against somebody we cannot fight any other way,
- * which is also the only time we are the smaller and quicker of the two and
- * can get round them to do it.
- *
- * The walk goes round the virus and not at it: the straight line to the far
- * side runs through the thing we are lining up, and we are big enough to come
- * apart on it. So the aim steps along the ring by an arc at a time.
- */
 const POP_WALK = 1600;
 const POP_STANDOFF = 90;
 const POP_ARC = 0.6;
 const POP_STAGE_TIMEOUT = 8000;
-/**
- * How long somebody is left alone after a walk round a virus at them came to
- * nothing, since the same virus and the same player are still the best shot
- * on the screen and the walk would otherwise start again on the next scan.
- */
 const POP_STAGE_REST = 8000;
-/**
- * Sitting in a virus, for when we are too small to pop on one and everything
- * after us is not. How far we will go to reach one.
- *
- * Being chased is the whole of when this is worth doing, and being chased is
- * something coming at us rather than something big being near: how close it
- * has to be, how much of our own speed it has to be closing at, and how long
- * that is still true for after it stops closing, since a chaser that pulls up
- * outside and waits is still a chaser.
- */
+const POP_ALIGN = 0.978;
+const POP_CONTACT = 0.2;
+const POP_CONTACT_HOLD = 0.4;
+const FEED_MEMORY = 30000;
+const EJECT_INTERVAL = 120;
+const POP_TIMEOUT = 6000;
+const POP_SCAN = 400;
+
 const HIDE_RANGE = 1600;
-/**
- * Standing on a virus that fits under us, so that whoever takes the bait takes
- * the virus with it.
- *
- * How far we will walk to one, how far off the mark may be and still be worth
- * waiting for, how close it gets before we step round to the far side, and how
- * far past the virus that step goes. Then how long we will stand there for
- * somebody who never comes, and how long we leave it alone afterwards, since
- * the same virus is still the nearest one and nothing else would stop this
- * starting again on the very next tick.
- */
 const LURE_WALK = 900;
 const LURE_RANGE = 1400;
 const LURE_BAIL = 90;
 const LURE_CLEAR = 40;
 const LURE_TIMEOUT = 5000;
 const LURE_REST = 15000;
-/**
- * How fast somebody has to be coming before standing still for them is a
- * plan, in units per millisecond. On a crowded screen there is always
- * somebody bigger within range, and standing on a virus for everyone who
- * merely exists is a cell that spends a third of its early game as bait for
- * players who never look its way.
- */
 const LURE_CLOSING = 0.05;
 
 const HUNT_RANGE = 700;
 const HUNT_CLOSING = 0.45;
 const HUNT_SUSTAIN = 600;
 const HIDE_HOLD = 1500;
-/** How straight the line from us through the virus to them has to be. */
-const POP_ALIGN = 0.978;
-/**
- * Contact danger that keeps a feed from starting, since the split ring never
- * does, and the higher one that stops a feed already under way. A threat
- * hovering at the one line otherwise turns a one second feed into a coin
- * flip every tick, and every flip is pellets thrown at a count that the
- * virus keeps and we do not.
- */
-const POP_CONTACT = 0.2;
-const POP_CONTACT_HOLD = 0.4;
-/**
- * How long what was fed into a virus is remembered for.
- *
- * The virus keeps the count and the bot does not, so a feed that stops when
- * the line bends and starts again when it straightens has to carry on from
- * where it left off rather than from nothing. And a virus that has taken the
- * full eight and is still standing there is one the server would not let
- * fire, since it caps how many there are, so it is left alone for the same
- * while: feeding it again is mass thrown into a hole.
- */
-const FEED_MEMORY = 30000;
-const EJECT_INTERVAL = 120;
-const POP_TIMEOUT = 6000;
-/** How often to go looking for one of those lines. */
-const POP_SCAN = 400;
 
-/** How close to merging counts as close enough to stand and bait. */
 const BAIT_WINDOW = 4000;
 const BAIT_RANGE = 1400;
-/** Mass we need over them before letting them come is a plan. */
 const BAIT_MARGIN = 1.35;
-/** What a baited threat's push is multiplied by, since we want it to come. */
 const BAIT_DISCOUNT = 0.15;
 
-/**
- * Pouring the pieces into one.
- *
- * Every press ejects from every cell we own at the pointer, so a pointer on
- * our biggest cell is every other piece feeding it, thirteen of every
- * eighteen thrown. It is dearer than waiting for the merge and it is now,
- * which is what makes it a play: a big cell one pour short of a split on
- * somebody, or of outweighing somebody at its mouth, gets there in a
- * second. How far off the merge has to be for it to be worth it, how far a
- * piece can be from the big one and still land its pellets in it, the least
- * a piece keeps back, what pressure calls it off, how long a pour runs, how
- * long before the next, and the least the pour has to add.
- */
 const POUR_MERGE_FAR = 10000;
 const POUR_REACH = 600;
 const POUR_KEEP = SPLIT_MIN_MASS + EJECT_COST;
@@ -3196,6 +2798,23 @@ const POUR_PRESSURE = 0.2;
 const POUR_TIMEOUT = 4000;
 const POUR_REST = 6000;
 const POUR_WORTH = 0.1;
+
+// ------------------------------------------------ v7 additions: new tuning
+
+/** Fake-merge detection. */
+const MERGE_JUMP = 30;
+const MERGE_WINDOW = 1500;
+
+/** Threat-weight scaling by piece count. */
+const SCALE_BASE = 1.0;
+const SCALE_MAX = 2.5;
+
+/** Virus-shot range. */
+const VIRUS_REACH = 620;
+
+/** Motion history. */
+const MOTION_SAMPLES = 4;
+const MOTION_MIN_AGE = 120;
 
 // ---------------------------------------------------------------- directions
 
@@ -3209,11 +2828,6 @@ for (let i = 0; i < DIRECTIONS; i++) {
     DIR_Y[i] = Math.sin(i * DIR_STEP);
 }
 
-/**
- * Food is spread over the headings around it rather than added to one, which
- * is what makes a patch of pellets pull harder than a lone one without anybody
- * having to cluster them first. Cubed cosine, out to about 60 degrees.
- */
 const FOOD_CONE = 11;
 const FOOD_KERNEL = new Float64Array(FOOD_CONE + 1);
 for (let j = 0; j <= FOOD_CONE; j++) {
@@ -3231,10 +2845,6 @@ function sizeOf(mass) {
     return Math.sqrt(mass * 100);
 }
 
-/**
- * How fast a cell of that radius walks flat out, in units per millisecond.
- * The server moves it 2.2 × radius^-0.45 × 40 a tick, 25 ticks a second.
- */
 function walkSpeed(size) {
     return 2.2 * Math.pow(size, -0.45);
 }
@@ -3243,14 +2853,6 @@ function clamp01(value) {
     return value < 0 ? 0 : value > 1 ? 1 : value;
 }
 
-/**
- * What share of the split fear a threat of that weight earns for a meal of
- * that size, from the floor for one that would hardly notice it to the whole
- * of it for one it would feed on properly.
- *
- * The meal is everything of ours the split would land among, not the one
- * piece being asked about: eight crumbs in a huddle are one bite.
- */
 function splitAppetite(meal, mass) {
     const bite = clamp01(
         (meal / mass - SPLIT_BITE_NONE) / (SPLIT_BITE_FULL - SPLIT_BITE_NONE)
@@ -3264,19 +2866,12 @@ function span(ax, ay, bx, by) {
     return Math.sqrt(dx * dx + dy * dy);
 }
 
-/**
- * How long before split pieces may merge again: 30 seconds plus a share of the
- * mass, taking whichever of agar.io and the Ogar servers charges more. Nothing
- * on the wire carries the timer, so this is an estimate off the last time our
- * piece count went up.
- */
 function mergeDelay(mass) {
     const agario = 30000 + 23.3 * mass;
     const ogar = Math.max(30000, sizeOf(mass) * 200);
     return Math.max(agario, ogar);
 }
 
-/** agar.io's team colours, the way legacy/launcher.user.js read them. */
 function teamOf(color) {
     if (!color) return -1;
     if (color.substring(1, 3) === 'ff') return 0;
@@ -3284,7 +2879,6 @@ function teamOf(color) {
     return 2;
 }
 
-/** Distance from a point to the segment ab, for checking a split's flight. */
 function distanceToSegment(px, py, ax, ay, bx, by) {
     const dx = bx - ax;
     const dy = by - ay;
@@ -3293,6 +2887,21 @@ function distanceToSegment(px, py, ax, ay, bx, by) {
     if (t < 0) t = 0;
     else if (t > 1) t = 1;
     return span(px, py, ax + dx * t, ay + dy * t);
+}
+
+/**
+ * v7: fake-merge check.
+ *
+ * A cell whose mass has jumped since it was first seen has merged with
+ * something. Nothing else in agar.io adds mass that fast, since eating is
+ * reported separately in the eat list. Used by mergeThreats to tell two
+ * cells that have actually merged from two cells that merely overlap.
+ */
+function recentlyGained(cell, now) {
+    if (!cell.birthMass || cell.birthMass <= 0) return false;
+    const gained = massOf(cell) - cell.birthMass;
+    if (gained < MERGE_JUMP) return false;
+    return now - cell.birth < MERGE_WINDOW;
 }
 
 module.exports = function createAposBot(api) {
@@ -3320,79 +2929,48 @@ module.exports = function createAposBot(api) {
         constructor() {
             this.name = 'AposBot ' + version;
 
-            /**
-             * What the last tick decided. The panel shows it and nothing here
-             * reads it.
-             *
-             *   flee   threats close, taking the cheapest way out
-             *   bait   split and nearly merged, letting one come to us
-             *   stage  walking round a virus to line a shot up
-             *   pop    feeding a virus at somebody
-             *   hide   sitting in a virus we are too small to pop
-             *   pour   pouring the pieces into the biggest one
-             *   escape splitting out of something we cannot outrun
-             *   split  splitting onto prey this tick
-             *   hunt   closing on prey
-             *   feed   eating pellets
-             *   roam   nothing scores, holding the heading
-             */
             this.state = 'roam';
             this.threatCount = 0;
             this.clusterCount = 0;
             this.gapCount = 0;
             this.preyCount = 0;
 
-            /** Splitting and virus feeding, both off with the one switch. */
             this.aggressive = true;
             this.drawing = true;
 
             this.heading = null;
-            /** The way round something, followed until it stops working. */
             this.detour = null;
-            /** Which way along a wall it last slid, per axis. */
             this.slideX = 1;
             this.slideY = 1;
-            /** When something last closed on us, which is what cover is for. */
             this.huntedAt = 0;
             this.beingChased = false;
-            /** When each threat started closing on us, for telling a chase apart. */
             this.pursuit = new Map();
             this.targetId = null;
-            /** What the aim settled on this tick, and when it settled on it. */
             this.target = null;
             this.targetSince = 0;
             this.splitAt = 0;
             this.feeding = null;
-            /** The virus being walked round, before there is a line to feed. */
             this.staging = null;
-            /** Who not to walk round a virus at again yet, and until when. */
             this.stageRest = new Map();
-            /** How many pellets each virus has had from us lately, and when. */
             this.fedViruses = new Map();
-            /** The pour under way, and when the next may start. */
             this.pouring = null;
             this.pourRest = 0;
-            /** The virus being stood on as bait, and when to stop offering it. */
             this.luring = null;
             this.lureRest = 0;
             this.popScan = 0;
             this.cellCount = 0;
-            /** When our piece count last went up, which starts the merge clock. */
             this.brokeAt = 0;
             this.baitId = null;
             this.mergeLeft = 0;
             this.contact = 0;
 
-            /** Where cells were last tick, so a target can be led. */
             this.motion = new Map();
 
             this.risk = new Float64Array(DIRECTIONS);
             this.gain = new Float64Array(DIRECTIONS);
             this.preyGain = new Float64Array(DIRECTIONS);
             this.value = new Float64Array(DIRECTIONS);
-            /** Whether the screen is empty enough that room is the only gain. */
             this.repositioning = false;
-            /** How hard something that could eat us is leaning on us, 0 to 1. */
             this.menace = 0;
         }
 
@@ -3439,10 +3017,6 @@ module.exports = function createAposBot(api) {
 
         // ---------------------------------------------------------- the world
 
-        /**
-         * Sorts what we can see into what eats us, what we eat, and what does
-         * neither, all measured against our own biggest and smallest cells.
-         */
         survey(mine) {
             let total = 0;
             let cx = 0;
@@ -3472,17 +3046,8 @@ module.exports = function createAposBot(api) {
 
             const food = [];
             const viruses = [];
-            // Everything with a mouth, whether or not it is pointed at us. A
-            // cell that is no threat to us can still eat half of us, which is
-            // what a split leaves lying about.
             const enemies = [];
 
-            // Memory is for what can eat us. A remembered pellet is off the
-            // screen behind a hundred nearer ones, and a remembered player is
-            // a stale position: a piece that merged into its neighbour, or
-            // was swallowed at the edge of the screen, leaves three seconds
-            // of aiming at a spot with nothing on it. So food and prey come
-            // from the screen, and only threats come from memory.
             const visible = getCells();
             const cells = getMemoryCells();
             for (const id in cells) {
@@ -3513,8 +3078,6 @@ module.exports = function createAposBot(api) {
 
             this.foresee(enemies, food);
 
-            // Our own pieces smallest first, which is the order anything
-            // eating its way through them would take them in.
             const ladder = mine
                 .map((cell) => ({
                     id: cell.id, mass: massOf(cell),
@@ -3526,10 +3089,6 @@ module.exports = function createAposBot(api) {
             const prey = [];
             const threats = [];
             for (const entry of enemies) {
-                // Neither list excludes the other. Split into pieces of
-                // different sizes, one cell is lunch for the big piece and
-                // death for a small one at the same time, and it is the small
-                // one that gets there first.
                 if (!entry.remembered && entry.grown * PREY_RATIO < bigMass) {
                     prey.push(entry);
                 }
@@ -3538,22 +3097,8 @@ module.exports = function createAposBot(api) {
 
             this.mergeThreats(threats, enemies, smallMass, ladder);
 
-            // What each threat covers, so nothing has to work it out per
-            // pellet. Squared, since the only question asked of it is inside
-            // or outside.
-            //
-            // The two rings answer different questions and so are kept apart.
-            // A mouth is where food is not food, and a split ring is where
-            // food is worth less: somebody has to spend half their mass and a
-            // merge timer to collect on it, and most of them will not. Ruling
-            // both out is what leaves a screen with four players on it holding
-            // nothing worth arriving at.
             const zones = [];
             for (const threat of threats) {
-                // Less the piece being asked about, like every other reading
-                // of it. Counting the whole cascade here has a lone cell treat
-                // anything that could eat it as able to split onto it too,
-                // which fences off most of the food on the screen.
                 const grown = this.grownFor(threat, small);
                 const splits = grown > smallMass * SPLIT_THREAT_RATIO;
                 const mouth = threat.size + big.size + THREAT_MARGIN;
@@ -3587,30 +3132,10 @@ module.exports = function createAposBot(api) {
             };
         }
 
-        /**
-         * Whether a cell is a pellet: small, nameless and standing still.
-         *
-         * Mass alone does not say. A fresh spawn on agar.io is 40 to 60
-         * across, under the pellet mass, and quicker than anything that could
-         * eat it. Filed as a pellet it outbids every real one on the screen by
-         * its mass, and the bot crosses the screen after something it will
-         * never catch. Filed as prey it is worth what can be caught.
-         */
         isPellet(cell, mass) {
             return mass <= PELLET_MASS && !cell.name && cell.isNotMoving();
         }
 
-        /**
-         * What an enemy would weigh once it had eaten its way through the
-         * pieces of ours it can reach, smallest first.
-         *
-         * A cell the size of one of our middle pieces is not worth its own
-         * mass when we are in eight of them. It takes the smallest, which pays
-         * for the next one up, and it keeps going: by the time it stops it can
-         * be worth more than everything we have left. So it is sized by where
-         * that ends rather than by where it starts, which is what stops the
-         * big pieces treating it as lunch while the small ones feed it.
-         */
         cascade(entry, ladder) {
             let grown = entry.mass + (entry.potential || 0);
             let absorbed = null;
@@ -3631,15 +3156,6 @@ module.exports = function createAposBot(api) {
             entry.eats = eats;
         }
 
-        /**
-         * What each enemy is about to weigh, before it does.
-         *
-         * Any player it can swallow that is already at its mouth, or inside a
-         * split of it when a split would pay, and any ejected mass at its edge
-         * in somebody else's colour, which is a teammate feeding it. The
-         * feeder counts too, less what a transfer wastes, since what is being
-         * poured in is the rest of them.
-         */
         foresee(enemies, food) {
             const ejected = [];
             for (const cell of food) if (cell.ejected) ejected.push(cell);
@@ -3648,10 +3164,6 @@ module.exports = function createAposBot(api) {
                 let extra = 0;
                 for (const other of enemies) {
                     if (other === entry) continue;
-                    // Its own pieces are not a meal. They merge, a minute
-                    // from now, and until then a player broken into ten is
-                    // ten mouthfuls rather than one cell that has already
-                    // swallowed nine of them.
                     if (other.cell.color === entry.cell.color) continue;
                     if (entry.mass < other.mass * EAT_RATIO) continue;
                     const gap =
@@ -3692,11 +3204,6 @@ module.exports = function createAposBot(api) {
             }
         }
 
-        /**
-         * The same number for one cell of ours, which is not fed by itself.
-         * Counting a piece towards what would eat it has an enemy splitting
-         * onto us with mass it only gets by eating us first.
-         */
         grownFor(entry, cell) {
             if (!entry.absorbed) return entry.grown;
             return entry.absorbed.indexOf(cell.id) === -1
@@ -3704,12 +3211,6 @@ module.exports = function createAposBot(api) {
                 : entry.grown - massOf(cell);
         }
 
-        /**
-         * Two enemy cells lying on top of each other are one cell as soon as
-         * they finish merging, and either half on its own can be small enough
-         * to look harmless. Same colour and overlapping is close enough to
-         * call it one player.
-         */
         mergeThreats(threats, enemies, smallMass, ladder) {
             const groups = new Map();
             for (const entry of enemies) {
@@ -3732,6 +3233,13 @@ module.exports = function createAposBot(api) {
                             continue;
                         }
                         if (span(a.x, a.y, b.x, b.y) > reach * 0.9) continue;
+                        // v7: only treat as a merged threat when one of them
+                        // recently gained mass. Two cells that overlap but
+                        // have not merged are two cells.
+                        const now = getLastUpdate();
+                        if (!recentlyGained(a, now) && !recentlyGained(b, now)) {
+                            continue;
+                        }
                         const mass = massOf(a) + massOf(b);
                         const entry = {
                             x: (a.x + b.x) / 2,
@@ -3750,71 +3258,78 @@ module.exports = function createAposBot(api) {
         }
 
         /**
-         * How fast everything worth aiming at is going, in units per
-         * millisecond.
+         * v7: velocity from a ring buffer, not a single sample.
          *
-         * Measured between updates rather than between ticks. In the browser
-         * the bot thinks 60 times a second over a socket that talks about 25,
-         * so a frame-to-frame reading is a fraction of the movement over a
-         * whole update interval and everything looks nearly still.
+         * The old version averaged the last position with the one before
+         * it, which is one update's worth of movement. The new version
+         * keeps the last few positions per cell and fits a velocity over
+         * the whole window, which is the same number when the cell is
+         * walking straight and a much steadier one when it is turning.
          */
         trackMotion(view, now) {
             const seen = new Set();
             const remember = (entry) => {
                 if (!entry.cell) return;
                 seen.add(entry.cell.id);
-                const last = this.motion.get(entry.cell.id);
-                if (!last) {
-                    this.motion.set(entry.cell.id, {
-                        x: entry.x, y: entry.y, at: now, vx: 0, vy: 0,
-                        moved: false,
-                    });
+                let history = this.motion.get(entry.cell.id);
+                if (!history) {
+                    history = [];
+                    this.motion.set(entry.cell.id, history);
+                }
+                history.push({ x: entry.x, y: entry.y, at: now });
+                if (history.length > MOTION_SAMPLES) history.shift();
+                if (history.length < 2) {
+                    entry.vx = 0;
+                    entry.vy = 0;
                     return;
                 }
-                if (now > last.at) {
-                    const elapsed = now - last.at;
-                    const vx = (entry.x - last.x) / elapsed;
-                    const vy = (entry.y - last.y) / elapsed;
-                    // Half of what it was and half of what it just did. One
-                    // update's worth of glide is a noisy reading, and a lead
-                    // or a projection taken off it swings about. The first
-                    // reading is taken whole, since before it there is
-                    // nothing to average with.
-                    last.vx = last.moved ? (last.vx + vx) / 2 : vx;
-                    last.vy = last.moved ? (last.vy + vy) / 2 : vy;
-                    last.moved = true;
-                    last.x = entry.x;
-                    last.y = entry.y;
-                    last.at = now;
+                const first = history[0];
+                const last = history[history.length - 1];
+                const age = last.at - first.at;
+                if (age < MOTION_MIN_AGE) {
+                    entry.vx = 0;
+                    entry.vy = 0;
+                    return;
                 }
-                entry.vx = last.vx;
-                entry.vy = last.vy;
+                entry.vx = (last.x - first.x) / age;
+                entry.vy = (last.y - first.y) / age;
             };
             for (const entry of view.prey) remember(entry);
             for (const entry of view.threats) remember(entry);
-            // Our own too, since how fast we are is the other half of every
-            // question about whether running works.
-            for (const cell of view.mine) remember({ cell, x: cell.x, y: cell.y });
+            for (const cell of view.mine) {
+                remember({ cell, x: cell.x, y: cell.y });
+            }
             for (const id of this.motion.keys()) {
                 if (!seen.has(id)) this.motion.delete(id);
             }
         }
 
-        /** How fast something is going, or nothing if it has not been seen move. */
         speedOf(id) {
-            const last = this.motion.get(id);
-            if (!last) return 0;
-            return Math.sqrt(last.vx * last.vx + last.vy * last.vy);
+            const history = this.motion.get(id);
+            if (!history || history.length < 2) return 0;
+            const first = history[0];
+            const last = history[history.length - 1];
+            const age = last.at - first.at;
+            if (age < MOTION_MIN_AGE) return 0;
+            const vx = (last.x - first.x) / age;
+            const vy = (last.y - first.y) / age;
+            return Math.sqrt(vx * vx + vy * vy);
+        }
+
+        /**
+         * v7: how many pieces we are in, turned into a threat multiplier.
+         *
+         * The old file used a flat THREAT_WEIGHT. The new one scales it
+         * linearly with piece count, from 1.0 at one cell to 2.5 at sixteen.
+         */
+        threatScale() {
+            if (this.cellCount <= 1) return SCALE_BASE;
+            const t = Math.min(1, (this.cellCount - 1) / (MAX_CELLS - 1));
+            return SCALE_BASE + t * (SCALE_MAX - SCALE_BASE);
         }
 
         // -------------------------------------------------------- the scoring
-
-        /**
-         * Fills the three fields every heading is judged on and returns how
-         * hard the nearest threat is pressing, which is what the rest of the
-         * tick keys off.
-         */
-        score(view) {
+                score(view) {
             const risk = this.risk;
             const gain = this.gain;
             const preyGain = this.preyGain;
@@ -3832,39 +3347,21 @@ module.exports = function createAposBot(api) {
             return pressure;
         }
 
-        /**
-         * A threat pushes on the headings that point at it, hardest when it is
-         * already inside its reach. Each one is anchored on whichever of our
-         * cells it is closest to eating, so a threat that has cornered one
-         * piece steers the whole player.
-         */
         scoreThreats(view, risk) {
             let pressure = 0;
-            // Being inside a mouth and being inside a split range are not the
-            // same emergency, and one tactic keys off each. Feeding a virus at
-            // somebody is always inside their split range, since the virus has
-            // to be between us, so gating that on anything else calls it off
-            // every time.
             this.contact = 0;
             const horizon = this.horizon();
+            const scale = this.threatScale();
             for (const threat of view.threats) {
                 const baited = threat.id !== null && threat.id === this.baitId;
                 const discount = baited ? BAIT_DISCOUNT : 1;
                 let touches = false;
                 const ahead = this.ahead(threat);
 
-                // Once per cell it endangers rather than once per threat, so
-                // one enemy sitting on three of our pieces pushes three times
-                // as hard as one sitting on a single piece.
                 for (const cell of view.mine) {
                     const mass = massOf(cell);
-                    // What it would weigh by the time it got to this piece,
-                    // less whatever this piece is worth: an enemy does not
-                    // split onto us with mass it only has after eating us.
                     const grown = this.grownFor(threat, cell);
                     if (grown < mass * THREAT_RATIO) continue;
-                    // And whether it would have to reach through a piece that
-                    // eats it to get this one.
                     const weight = this.covered(view, cell, threat)
                         ? discount * COVER_DISCOUNT
                         : discount;
@@ -3877,12 +3374,6 @@ module.exports = function createAposBot(api) {
                             splitAppetite(Math.max(mass, threat.eats), threat.mass)
                         : 0;
 
-                    // How worried this cell is right now, which is what the
-                    // states and the tactics read. The gap between the two
-                    // edges, measured against the buffer rather than against
-                    // the distance: normalising by the distance divides by the
-                    // threat's own radius, so a cell ten times our size reads
-                    // as half worried while it is swallowing us.
                     const gap =
                         Math.min(
                             span(threat.x, threat.y, cell.x, cell.y),
@@ -3901,22 +3392,18 @@ module.exports = function createAposBot(api) {
                         this.contact = Math.max(this.contact, weight * near);
                     }
 
-                    // Weighted by what the piece is worth, since mass is
-                    // the score and one pointer cannot save both sides of
-                    // something standing in the middle of us. Counting pieces
-                    // instead has eight cells run to save four crumbs while
-                    // the three that carry the game swim past its mouth.
                     const stake = mass / view.bigMass;
                     const nearer =
                         Math.max(0, this.closingOn(threat, cell)) * CLOSING_LEAD;
+                    const scaled = THREAT_WEIGHT * scale;
                     this.sweep(
                         risk, cell, ahead, reach, THREAT_BUFFER,
-                        weight * stake * THREAT_WEIGHT, horizon, nearer
+                        weight * stake * scaled, horizon, nearer
                     );
                     if (splits) {
                         this.sweep(
                             risk, cell, ahead, reach + SPLIT_REACH, THREAT_BUFFER,
-                            weight * stake * THREAT_WEIGHT * fear,
+                            weight * stake * scaled * fear,
                             horizon, nearer
                         );
                     }
@@ -3929,10 +3416,6 @@ module.exports = function createAposBot(api) {
             return pressure;
         }
 
-        /**
-         * Where a threat will be a moment from now, or where it is when it
-         * has not been seen to move.
-         */
         ahead(threat) {
             if (!threat.vx && !threat.vy) return threat;
             return {
@@ -3944,16 +3427,6 @@ module.exports = function createAposBot(api) {
             };
         }
 
-        /**
-         * What one cell going one way would cost, on every heading at once.
-         *
-         * Measured on how close the ray from that cell passes to the thing,
-         * not on how close the thing is now. Those differ exactly where it
-         * matters: a heading that runs past an enemy at arm's length reads as
-         * perfectly safe to anything that only asks where everybody is
-         * standing, and it is how a player with four cells feeds the fast
-         * small ones to something the slow big one would never have reached.
-         */
         sweep(risk, cell, thing, radius, buffer, weight, horizon, nearer = 0) {
             const rx = thing.x - cell.x;
             const ry = thing.y - cell.y;
@@ -3967,16 +3440,8 @@ module.exports = function createAposBot(api) {
 
             const band = radius + buffer;
             for (let i = 0; i < DIRECTIONS; i++) {
-                // Anything that takes us no closer than we already are costs
-                // nothing, which is most of why this is a sweep and not a
-                // push: the whole half of the compass that leaves is free, and
-                // the food and the walls pick between those.
                 const along = rx * DIR_X[i] + ry * DIR_Y[i];
                 if (along <= 0) {
-                    // Every heading that leaves is free, which leaves them all
-                    // tied and the bot running sideways past something that is
-                    // on top of it. Straight away wins the tie, and only while
-                    // there is something to be away from.
                     const clear = distance - radius;
                     if (clear >= buffer) continue;
                     const close = clear > 0 ? 1 - clear / buffer : 1;
@@ -3984,9 +3449,6 @@ module.exports = function createAposBot(api) {
                     risk[i] -= weight * close * close * leaving * ESCAPE_LEAN;
                     continue;
                 }
-                // Read nearer along the heading by what it closes in the
-                // time the heading takes, so a thing that is coming counts
-                // as where it is going to be and not where it is.
                 const due = along > nearer ? along - nearer : 0;
                 if (due >= horizon) continue;
                 const cross = rx * DIR_Y[i] - ry * DIR_X[i];
@@ -4000,10 +3462,6 @@ module.exports = function createAposBot(api) {
             }
         }
 
-        /**
-         * Whether a thing is a piece in flight coming at a cell: moving faster
-         * than anything walks, and closing.
-         */
         inFlight(thing, rx, ry) {
             const vx = thing.vx || 0;
             const vy = thing.vy || 0;
@@ -4011,28 +3469,13 @@ module.exports = function createAposBot(api) {
             return rx * vx + ry * vy < 0;
         }
 
-        /**
-         * What every heading costs while a piece is in flight at a cell.
-         *
-         * A half thrown from a split goes where it was thrown, about 710 along
-         * one line and faster than we go, and then it stops. Down that line is
-         * being caught and up it is meeting it halfway, so both ends cost the
-         * full weight, while off the line is the way out. Off it on the side
-         * we are already standing on: crossing the line is passing through
-         * the piece, so that way costs half. Straight away is what the
-         * ordinary sweep leans towards, and against a piece in flight it is
-         * the one heading that cannot work.
-         */
         sweepFlight(risk, thing, rx, ry, radius, buffer, weight) {
             const speed = Math.sqrt(thing.vx * thing.vx + thing.vy * thing.vy);
             const vx = thing.vx / speed;
             const vy = thing.vy / speed;
-            // How far we stand off its line, less what it reaches from it.
             const clear = Math.abs(rx * vy - ry * vx) - radius;
             if (clear >= buffer) return;
             const close = clear > 0 ? 1 - clear / buffer : 1;
-            // Which side of the line we are on, so that crossing it can be
-            // told from leaving it.
             const toward = ry * vx - rx * vy > 0 ? 1 : -1;
             for (let i = 0; i < DIRECTIONS; i++) {
                 const along = DIR_X[i] * vx + DIR_Y[i] * vy;
@@ -4043,19 +3486,6 @@ module.exports = function createAposBot(api) {
             }
         }
 
-        /**
-         * Whether a bigger piece of ours would eat this threat at the one spot
-         * it has to stand in to eat this piece.
-         *
-         * Not whether it is roughly in the way. A threat takes a cell by
-         * getting its centre to within the two radii of it, and the near side
-         * of that circle is where it comes from, so that point is the whole
-         * question: if a piece of ours that outweighs it has its mouth over
-         * that point, coming for the crumb costs the threat the game.
-         *
-         * Measured against the whole cascade rather than against what it
-         * weighs now, since it arrives having eaten whatever it passed.
-         */
         covered(view, cell, threat) {
             if (view.mine.length < 2) return false;
             if (view.bigMass < threat.grown * PREY_RATIO) return false;
@@ -4075,7 +3505,6 @@ module.exports = function createAposBot(api) {
             return false;
         }
 
-        /** How far ahead the sweep looks, which is about half a screen. */
         horizon() {
             return Math.max(600, verticalDistance() * 0.5);
         }
@@ -4094,12 +3523,6 @@ module.exports = function createAposBot(api) {
             }
         }
 
-        /**
-         * Smaller players on the move, with how far ahead of themselves they
-         * are about to eat. A cell smaller than us is quicker than us, so the
-         * pellets in front of one are its and not ours, and steering at them
-         * is following it round the map from behind.
-         */
         grazers(view) {
             const out = [];
             for (const entry of view.prey) {
@@ -4116,7 +3539,6 @@ module.exports = function createAposBot(api) {
             return out;
         }
 
-        /** Whether a pellet is in front of something that will get there first. */
         grazed(grazers, cell) {
             for (const grazer of grazers) {
                 const dx = cell.x - grazer.x;
@@ -4127,11 +3549,6 @@ module.exports = function createAposBot(api) {
             return false;
         }
 
-        /**
-         * Prey is worth more than the pellets it is made of, worth more again
-         * once it is inside split range, and worth more still with its back to
-         * a wall, since that is the one that cannot simply outrun us.
-         */
         scorePrey(view, preyGain) {
             const ours = this.ourSpeed(view);
             for (const entry of view.prey) {
@@ -4145,8 +3562,6 @@ module.exports = function createAposBot(api) {
                 let value =
                     (FOOD_GAIN * entry.mass * entry.catch) /
                     (near.distance + FOOD_SOFT);
-                // Inside split range is worth double when a half of ours
-                // could take it, and nothing in particular when it could not.
                 if (near.distance < near.cell.size + SPLIT_REACH &&
                     massOf(near.cell) / 2 >= entry.grown * SPLIT_KILL_RATIO) {
                     value *= 2;
@@ -4157,11 +3572,6 @@ module.exports = function createAposBot(api) {
             }
         }
 
-        /**
-         * Whether a prey's ways out are shut, by the map or by viruses it is
-         * too big to pass. Read over the headings that lead away from us,
-         * since those are the ones a run takes.
-         */
         trapped(view, entry, near) {
             const pops = entry.mass > VIRUS_MASS * EAT_RATIO;
             const heading = Math.atan2(near.uy, near.ux);
@@ -4190,7 +3600,6 @@ module.exports = function createAposBot(api) {
             return blocked >= TRAP_BLOCKED;
         }
 
-        /** How far a cell can go that way before the map runs out. */
         roomAlong(cell, dx, dy) {
             const minX = getMapStartX();
             const maxX = getMapEndX();
@@ -4207,14 +3616,6 @@ module.exports = function createAposBot(api) {
             return exit < 0 ? 0 : exit;
         }
 
-        /**
-         * How much of a prey's mass is worth counting, given that it is
-         * quicker than us.
-         *
-         * What can be caught is what is coming this way, what is standing
-         * still, what has run out of map, and what a split can reach. The
-         * rest is leaving, and a walk after it ends with it still ahead.
-         */
         catchable(view, entry, near, ours) {
             const away = (entry.vx || 0) * near.ux + (entry.vy || 0) * near.uy;
             if (away <= 0) return 1;
@@ -4231,21 +3632,10 @@ module.exports = function createAposBot(api) {
             return Math.max(PREY_FLEEING, 1 - away / chaser);
         }
 
-        /**
-         * A virus splits us on the way in, so it costs more the more pieces we
-         * have room to be broken into, and nothing at all once we are at the
-         * cap: at 16 cells it is 100 mass sitting still. One we are too small
-         * to pop is cover instead, since whoever is chasing us is not.
-         */
         scoreViruses(view, risk, gain, pressure) {
             const room = Math.max(0, MAX_CELLS - view.mine.length);
             const shelter = this.beingChased && this.shelters(view);
             const horizon = this.horizon();
-            // Whether a virus breaks anything we own, which is a question
-            // about our biggest cell and not about whichever one happens to
-            // be closest to it. A piece too small to pop sitting in front of
-            // a cell that would is no reason to walk that cell in, and it is
-            // not cover either while we are carrying something a virus opens.
             const breaks = view.bigMass > VIRUS_MASS * EAT_RATIO;
             for (const virus of view.viruses) {
                 const near = this.nearestCell(view.mine, virus.x, virus.y);
@@ -4262,9 +3652,6 @@ module.exports = function createAposBot(api) {
                         }
                         continue;
                     }
-                    // Every cell big enough to pop on it, since the one that
-                    // arrives first is the fast small one only when it is too
-                    // small to care.
                     const weight = VIRUS_WEIGHT * (room / MAX_CELLS);
                     const shot = this.loaded(view, virus);
                     for (const cell of view.mine) {
@@ -4276,10 +3663,6 @@ module.exports = function createAposBot(api) {
                             risk, cell, virus, radius, VIRUS_BUFFER, share, horizon
                         );
                         if (!shot) continue;
-                        // Somebody is loading it, and it flies down that line
-                        // through whoever stands there. Downrange of it the
-                        // line is a corridor to leave, the way a piece in
-                        // flight is: backing down it is still in it.
                         const rx = virus.x - cell.x;
                         const ry = virus.y - cell.y;
                         if (rx * shot.x + ry * shot.y >= 0) continue;
@@ -4309,18 +3692,6 @@ module.exports = function createAposBot(api) {
             }
         }
 
-        /**
-         * Which way a virus somebody is feeding will fly, or nothing when
-         * nobody is feeding it.
-         *
-         * Ejected mass at a virus in a colour that is not ours is somebody
-         * loading it, and at eight it fires along the line the pellets came
-         * in on: from the feeder, through the virus, and on. Which pellet
-         * puts it over is theirs to choose, so a virus with pellets at it is
-         * a gun that is already pointed. The line is read from the feeder
-         * when they are still standing within an eject of it, and from the
-         * pellets themselves when they are not.
-         */
         loaded(view, virus) {
             let fx = 0;
             let fy = 0;
@@ -4348,7 +3719,6 @@ module.exports = function createAposBot(api) {
             return { x: fx / length, y: fy / length };
         }
 
-        /** Whether anything chasing us is big enough to pop on a virus. */
         shelters(view) {
             for (const threat of view.threats) {
                 if (threat.mass > VIRUS_MASS * EAT_RATIO) return true;
@@ -4356,11 +3726,6 @@ module.exports = function createAposBot(api) {
             return false;
         }
 
-        /**
-         * How much room each heading leaves before the map runs out. This is
-         * what keeps an escape from ending in a corner, and it counts from
-         * further out the harder we are being pressed.
-         */
         scoreWalls(view, risk, pressure) {
             const minX = getMapStartX();
             const minY = getMapStartY();
@@ -4403,14 +3768,6 @@ module.exports = function createAposBot(api) {
             }
         }
 
-        /**
-         * How boxed in a heading would leave us, while something that could
-         * eat us is close enough for that to matter.
-         *
-         * The threat terms already say which way not to go. They do not say
-         * anything about where the going ends, so a bot dodging correctly all
-         * the way into a corner scores well every single tick and dies anyway.
-         */
         scoreEscape(view, gain) {
             this.menace = 0;
             const minX = getMapStartX();
@@ -4424,9 +3781,6 @@ module.exports = function createAposBot(api) {
                 return;
             }
 
-            // How hard we are being leaned on, read off the gap between edges
-            // rather than the gap between centres, and over a long enough run
-            // that it is still answerable when it happens.
             let menace = 0;
             for (const threat of view.threats) {
                 for (const cell of view.mine) {
@@ -4443,11 +3797,6 @@ module.exports = function createAposBot(api) {
             this.menace = menace;
             if (menace <= 0) return;
 
-            // And how much of a pocket we are already in. Out in the middle
-            // there is nothing to be saved from, so this says nothing at all
-            // there, which is where most of the eating happens. It only starts
-            // speaking once the map is running out on some side of us, which
-            // is the position worth not being in.
             const at = view.centre;
             let here = at.x - minX;
             if (maxX - at.x < here) here = maxX - at.x;
@@ -4469,14 +3818,6 @@ module.exports = function createAposBot(api) {
             }
         }
 
-        /**
-         * Room to go to, for when there is nothing to go to.
-         *
-         * Runs only on a screen with nothing on it worth eating, so it never
-         * competes with food. What it does is stop an empty screen meaning an
-         * empty score, which is what left the bot holding one bearing into the
-         * edge and then running along it.
-         */
         scoreOpen(view, gain) {
             this.repositioning = false;
             if (view.food.length > 0 || view.prey.length > 0) return;
@@ -4492,11 +3833,6 @@ module.exports = function createAposBot(api) {
             }
             this.repositioning = true;
             const cell = view.big;
-            // Scored on where the heading leaves us rather than on how far it
-            // could run. Room ahead ties every heading that has more than the
-            // cap, which along an edge is most of them, and a tie is the bot
-            // holding the bearing it already had. Where it lands does not tie:
-            // the edge is still the edge once you have run along it.
             for (let i = 0; i < DIRECTIONS; i++) {
                 const x = cell.x + DIR_X[i] * ROAM_RANGE;
                 const y = cell.y + DIR_Y[i] * ROAM_RANGE;
@@ -4510,11 +3846,6 @@ module.exports = function createAposBot(api) {
             }
         }
 
-        /**
-         * One wall shoving on the headings that point into it. Weak next to
-         * the room term on purpose: this one only has to beat an empty screen,
-         * since food along the edge is still worth going to get.
-         */
         pushWall(risk, gap, ux, uy, near) {
             if (gap >= near) return;
             const crowding = gap > 0 ? 1 - gap / near : 1;
@@ -4525,7 +3856,6 @@ module.exports = function createAposBot(api) {
             }
         }
 
-        /** Whether a cell has run out of room to keep running. */
         cornered(entry) {
             const minX = getMapStartX();
             const maxX = getMapEndX();
@@ -4539,7 +3869,6 @@ module.exports = function createAposBot(api) {
             );
         }
 
-        /** The cell of ours closest to a point, and which way it lies. */
         nearestCell(mine, x, y, preyMass) {
             let cell = null;
             let best = Infinity;
@@ -4565,7 +3894,6 @@ module.exports = function createAposBot(api) {
             };
         }
 
-        /** Adds a value to the headings around one, falling off with the angle. */
         spread(field, ux, uy, value) {
             const bin = Math.round(Math.atan2(uy, ux) / DIR_STEP);
             for (let j = -FOOD_CONE; j <= FOOD_CONE; j++) {
@@ -4594,7 +3922,6 @@ module.exports = function createAposBot(api) {
             }
 
             const now = getLastUpdate();
-            // Only the steering has one, so a tick a tactic answers has none.
             this.target = null;
             if (mine.length > this.cellCount) this.brokeAt = now;
             this.cellCount = mine.length;
@@ -4607,8 +3934,6 @@ module.exports = function createAposBot(api) {
             this.mergeLeft = this.mergeIn(view, now);
 
             this.baitId = this.baitTarget(view, now);
-            // Once a tick, since it moves the clock on and both the field and
-            // the cover read it.
             this.beingChased = this.chased(view, now);
             const pressure = this.score(view);
             this.rank(view);
@@ -4634,17 +3959,6 @@ module.exports = function createAposBot(api) {
             return this.steer(view, pressure);
         }
 
-        /**
-         * Splitting to get out, when there is nothing left to get out with.
-         *
-         * Cornered by something bigger, every heading either runs at it or
-         * runs out of map, and the cell is slower than the room it has left. A
-         * split is the one thing that covers ground the cell cannot: it throws
-         * both halves 710 in a second. It costs half the mass on each of two
-         * lines, so it wants a line that clears the mouth by more than the
-         * mouth can reach, and it is only ever taken when the alternative is
-         * standing there being eaten.
-         */
         planEscape(view, now) {
             if (this.contact < ESCAPE_CONTACT) return null;
             if (now - this.splitAt < SPLIT_COOLDOWN) return null;
@@ -4661,8 +3975,6 @@ module.exports = function createAposBot(api) {
                 isFinite(minX) && isFinite(minY) &&
                 isFinite(maxX) && isFinite(maxY);
 
-            // Which of them is actually on us, since that is the one we have
-            // to get away from rather than merely around.
             let pressing = null;
             let closest = Infinity;
             for (const threat of view.threats) {
@@ -4682,11 +3994,6 @@ module.exports = function createAposBot(api) {
             const ux = awayX / away;
             const uy = awayY / away;
 
-            // Size and speed run opposite ways in this game, so nothing big
-            // enough to eat us ever catches us by walking, and a mouth closing
-            // on us faster than we can go is a piece still in flight from a
-            // split. That we cannot outrun, and the gap that is left is
-            // measured in frames.
             const ours = Math.max(this.ourSpeed(view), walkSpeed(cell.size));
             const flying =
                 this.closingOn(pressing, cell) > ours * ESCAPE_LOSING;
@@ -4695,17 +4002,8 @@ module.exports = function createAposBot(api) {
                 grown > mass * SPLIT_THREAT_RATIO && grown >= SPLIT_MIN_MASS;
 
             if (!splits && !flying) {
-                // Something walking that cannot split onto us. It is slower
-                // than we are, so covering us is not eating us: it eats us
-                // only by cutting off every run we have, and whether it can
-                // is where it stands, not how far in it is.
                 if (this.runOpen(view, cell)) return null;
             } else {
-                // Running beats splitting whenever running works, and against
-                // this it works whenever some heading that takes us off it
-                // still has map in front of it. Being cornered is exactly the
-                // case where none does, and being swallowed by a piece in
-                // flight is the other way the room runs out.
                 const swallowed =
                     flying && closest < cell.size * ESCAPE_SWALLOW;
                 let boxed = true;
@@ -4719,12 +4017,6 @@ module.exports = function createAposBot(api) {
                 if (!boxed && !swallowed) return null;
             }
 
-            // Cornered. What matters now is where the halves come down, not
-            // how close they start: something already touching us is close to
-            // every line we could take, so asking the whole flight to clear it
-            // rules out the throw exactly when it is the only thing left. So
-            // the landing has to be out of reach, and the throw must not be
-            // aimed into the mouth on the way.
             const half = sizeOf(view.bigMass / 2);
             let best = null;
             let bestRoom = 0;
@@ -4756,10 +4048,6 @@ module.exports = function createAposBot(api) {
 
             if (best === null) return null;
 
-            // The throw goes wherever the pointer is, and the pointer is
-            // where the last tick left it. So this tick turns onto the
-            // landing and the next one throws. Fired at once it goes down
-            // whatever heading the running had, which is rarely this one.
             const at = this.point(view, DIR_X[best], DIR_Y[best], SPLIT_REACH);
             const dx = at[0] - view.centre.x;
             const dy = at[1] - view.centre.y;
@@ -4779,16 +4067,6 @@ module.exports = function createAposBot(api) {
             return this.aim(view, DIR_X[best], DIR_Y[best], SPLIT_REACH);
         }
 
-        /**
-         * How fast our own cells are actually going, which is the yardstick
-         * for whether anything is gaining on us.
-         *
-         * The fastest of them rather than the one being chased, since a piece
-         * that only appeared this update has no reading yet and the smallest
-         * cell we have is the quickest thing we could be. Reading it high
-         * makes a throw less likely, which is the right way round for a move
-         * that costs half the mass.
-         */
         ourSpeed(view) {
             let fastest = 0;
             for (const cell of view.mine) {
@@ -4798,20 +4076,22 @@ module.exports = function createAposBot(api) {
             return fastest;
         }
 
-        /** How fast something is eating into the gap between it and a cell. */
         closingOn(threat, cell) {
-            const last = threat.id !== null ? this.motion.get(threat.id) : null;
-            if (!last) return 0;
+            if (threat.id === null) return 0;
+            const history = this.motion.get(threat.id);
+            if (!history || history.length < 2) return 0;
+            const first = history[0];
+            const last = history[history.length - 1];
+            const age = last.at - first.at;
+            if (age < MOTION_MIN_AGE) return 0;
+            const vx = (last.x - first.x) / age;
+            const vy = (last.y - first.y) / age;
             const dx = cell.x - threat.x;
             const dy = cell.y - threat.y;
             const away = Math.sqrt(dx * dx + dy * dy) || 1;
-            return (last.vx * dx + last.vy * dy) / away;
+            return (vx * dx + vy * dy) / away;
         }
 
-        /**
-         * How far a cell can go along a heading before its edge meets the
-         * map, or forever while the map is not known.
-         */
         roomAlong(cell, dx, dy) {
             const minX = getMapStartX();
             const minY = getMapStartY();
@@ -4831,10 +4111,6 @@ module.exports = function createAposBot(api) {
             return exit < 0 ? 0 : exit;
         }
 
-        /**
-         * Whether a cell has a run left: some heading with a split's worth of
-         * map on it that nothing able to eat it can cut off by walking.
-         */
         runOpen(view, cell) {
             const mass = massOf(cell);
             for (let i = 0; i < DIRECTIONS; i++) {
@@ -4853,19 +4129,6 @@ module.exports = function createAposBot(api) {
             return false;
         }
 
-        /**
-         * Whether a threat walking flat out can get its mouth over a cell
-         * that runs along a heading for that much room.
-         *
-         * Walked forward a stride at a time: the cell goes down the heading
-         * and the threat goes its share of that straight at the cell, which
-         * is what a chaser with the pointer on us does. The server eats a
-         * cell whose centre is inside the other's radius less a third of its
-         * own, so that is the mouth. Caught if the mouth closes before the
-         * room or the reach of the run does, and clear as soon as it is
-         * behind us and falling back, since a slower chaser never makes that
-         * up on a straight run.
-         */
         cutsOff(threat, cell, hx, hy, room) {
             const mouth = Math.max(0, threat.size - cell.size / 3);
             const pace = walkSpeed(threat.size) / walkSpeed(cell.size);
@@ -4888,20 +4151,11 @@ module.exports = function createAposBot(api) {
             return false;
         }
 
-        /** Milliseconds until our pieces can merge again, 0 once they can. */
         mergeIn(view, now) {
             if (view.mine.length < 2) return 0;
             return Math.max(0, this.brokeAt + mergeDelay(view.bigMass) - now);
         }
 
-        /**
-         * Somebody worth standing still for.
-         *
-         * Pieces that are about to merge are bait: a player big enough to take
-         * one piece, and small enough that all of them together take him,
-         * walks in while we are two cells and finds one. So that threat stops
-         * pushing, the pieces gather, and we wait.
-         */
         baitTarget(view, now) {
             if (view.mine.length < 2 || !this.aggressive) return null;
             if (this.mergeIn(view, now) > BAIT_WINDOW) return null;
@@ -4922,14 +4176,6 @@ module.exports = function createAposBot(api) {
             return best ? best.id : null;
         }
 
-        /**
-         * The best heading, and the picture of why.
-         *
-         * Run before the tactics rather than inside the steering, because the
-         * ring is the bot's account of the tick and a tick a tactic answered
-         * is exactly the one worth reading. Drawing it only on the ticks
-         * nothing happened leaves the overlay blinking out whenever it does.
-         */
         rank(view) {
             const value = this.value;
             let best = 0;
@@ -4945,17 +4191,6 @@ module.exports = function createAposBot(api) {
                 if (value[i] < low) low = value[i];
             }
 
-            // Holding a heading through a near tie, so the cell travels
-            // instead of shivering between two headings worth the same, and
-            // through more than a near tie the further round the turn goes.
-            //
-            // The margin is a share of how much the compass differs, from
-            // the worst heading to the best. On a quiet screen that is the
-            // food, and while fleeing it is the mouth behind us, which is
-            // what keeps two ways round something at nearly the same price
-            // from being taken in turn. The best heading's own value is the
-            // wrong yardstick there: the free half of the compass scores
-            // about nothing, and a share of nothing holds nothing.
             if (this.heading !== null) {
                 let steps = Math.abs(best - this.heading);
                 if (steps > DIRECTIONS / 2) steps = DIRECTIONS - steps;
@@ -4971,7 +4206,6 @@ module.exports = function createAposBot(api) {
             return best;
         }
 
-        /** Turns the heading it settled on into somewhere to be. */
         steer(view, pressure) {
             const best = this.heading;
             const chasing = PREY_GAIN * this.preyGain[best] > this.gain[best];
@@ -4996,14 +4230,6 @@ module.exports = function createAposBot(api) {
                 drawCircle(target.x, target.y, target.size + 12, 2);
             }
 
-            // At the thing, not a fixed distance down the bearing to it. Every
-            // cell we own chases the same point, so where that point sits
-            // relative to each of them is the whole of the arrangement they
-            // end up in: a point pushed out past a pellet has four cells run
-            // through it abreast and spread out doing it, and the same point
-            // put on the pellet gathers them onto it. The only distance the
-            // aim owes anybody is enough to clear our own cells, and that is a
-            // question about the direction rather than a number.
             let reach = Math.min(target.distance, stride);
             if (!this.merging(view)) {
                 reach = Math.max(reach, this.floor(view, target.ux, target.uy));
@@ -5011,29 +4237,6 @@ module.exports = function createAposBot(api) {
             return this.aim(view, target.ux, target.uy, reach);
         }
 
-        /**
-         * The one thing along that heading worth arriving at.
-         *
-         * The scan says which way is worth going, though a bearing is the
-         * wrong thing to aim at: two patches either side of one heading
-         * average into a direction with nothing on it, and the bot sails
-         * between them and eats neither. So the heading picks the cone and the
-         * best mouthful inside it picks the point, where best leans hard
-         * towards the line: a mouthful off to the side has to be a good deal
-         * nearer to be worth the turn, or a patch gets eaten by swinging from
-         * one edge of the cone to the other on every pellet.
-         *
-         * A mouthful is what arriving there swallows, not the one pellet. The
-         * heading adds a patch up on its own, since twenty pellets land on
-         * the same few headings, and an aim that scored them one at a time
-         * had a lone pellet dead ahead beating a patch a little off the line,
-         * with the cell walking past the patch to get it.
-         *
-         * Food inside somebody's reach is not a mouthful. A field alone will
-         * steer around a threat and still let the bot graze towards one, which
-         * is how it ends up overlapping a cell ten times its size wondering
-         * why the escape came too late.
-         */
         commit(view, ux, uy) {
             let best = null;
             let bestValue = 0;
@@ -5048,9 +4251,6 @@ module.exports = function createAposBot(api) {
                 const along = (dx * ux + dy * uy) / distance;
                 const keeping = id === this.targetId;
                 if (along < (keeping ? COMMIT_KEEP : COMMIT_CONE)) return;
-                // The discounts only ever lower it, so the cheap comparison
-                // still rules out everything it used to before the rings and
-                // the lines are asked about.
                 const raw = worth() / (distance + FOOD_SOFT);
                 if (!keeping && raw <= bestValue) return;
                 const shun = this.shunned(view, x, y);
@@ -5079,9 +4279,6 @@ module.exports = function createAposBot(api) {
                     cell.ejected ? 'ejected mass' : 'pellet'
                 );
             }
-            // Prey is the thing to aim at only once it is nearly in reach of
-            // a split and can actually be caught. Before that the heading
-            // leans towards it and the pellets on the way are the point.
             const strike = view.big.size + SPLIT_REACH + STRIKE_MARGIN;
             for (const entry of view.prey) {
                 const caught = entry.catch === undefined ? 1 : entry.catch;
@@ -5101,12 +4298,6 @@ module.exports = function createAposBot(api) {
             return pick;
         }
 
-        /**
-         * What arriving on a pellet swallows: every pellet within the big
-         * cell's radius of it, itself included. Bucketed on that radius, so
-         * each pellet asks nine buckets rather than every other pellet on the
-         * screen.
-         */
         mouthfuls(view) {
             const radius = Math.max(view.big.size, 1);
             const buckets = new Map();
@@ -5139,17 +4330,6 @@ module.exports = function createAposBot(api) {
             };
         }
 
-        /**
-         * What a point is worth for standing where it stands, from nothing at
-         * all inside somebody's mouth to a discount inside their split range.
-         *
-         * Reading the split ring as a mouth is what empties the menu. It is
-         * 710 wide and every player big enough to matter carries one, so four
-         * of them on a screen leaves no pellet anywhere that is not inside
-         * one, and a bot with nothing worth arriving at goes back to steering
-         * on a bearing and shivering between two of those. Costing it instead
-         * says the same thing the field says: worth less, not worthless.
-         */
         shunned(view, x, y) {
             let shun = 1;
             for (const zone of view.zones) {
@@ -5164,16 +4344,6 @@ module.exports = function createAposBot(api) {
             return shun;
         }
 
-        /**
-         * Whether any cell of ours would have to go through something to get
-         * there.
-         *
-         * Every cell chases the same point down its own line, and the small
-         * ones get there first, since speed falls off with size. So a
-         * destination is only as safe as the worst of those lines: aiming past
-         * an enemy is how a player with four cells feeds three of them to it
-         * while the big one is still on its way.
-         */
         crosses(view, x, y) {
             const room = view.mine.length < MAX_CELLS;
             for (const cell of view.mine) {
@@ -5192,23 +4362,6 @@ module.exports = function createAposBot(api) {
             return false;
         }
 
-        /**
-         * Whether going from a cell to a point takes it inside something it is
-         * not inside already.
-         *
-         * The second half of that is the whole of it. A segment starts where
-         * the cell is, so once anything has closed to within its own reach the
-         * line to every point on the map passes through it, and a test that
-         * only asks how near the line comes answers yes to all of them: no
-         * pellet is reachable, no heading is clear, and the one direction that
-         * would save us reads exactly like the one that kills us. What is left
-         * to ask then is whether the line comes closer to it than we are
-         * standing. The whole half of the compass that leaves is clear, and
-         * nothing that dips towards it is. Asking only whether the far end is
-         * further out lets a line pass through the middle of the thing on
-         * its way to a point beyond it, which is chasing prey through the
-         * player that eats us.
-         */
         through(cell, thing, reach, x, y) {
             const gap = distanceToSegment(
                 thing.x, thing.y, cell.x, cell.y, x, y
@@ -5219,21 +4372,8 @@ module.exports = function createAposBot(api) {
             return gap < now - 1;
         }
 
-        /**
-         * How far ahead to put the destination.
-         *
-         * Every cell chases the same point, so a near one gathers them and a
-         * far one runs them in parallel. Gathering wins whenever something can
-         * eat a piece on its own, and the floor keeps the point outside our own
-         * cell, since a pointer inside it is a cell standing still.
-         */
         stride(view, pressure) {
             const floor = view.big.size + CLEAR_MARGIN;
-            // Inside the group rather than ahead of it, and deliberately not
-            // held off by the floor. Every cell chases the same spot, so a
-            // spot between them is each of them told to go at the other, and
-            // two pieces told that meet in the middle instead of running side
-            // by side until the timer runs out. Standing still is the job here.
             if (this.merging(view)) return view.spread * MERGE_PULL;
             const gather = pressure > GATHER_PRESSURE || this.state === 'bait';
             if (view.mine.length > 1 && gather) {
@@ -5242,30 +4382,10 @@ module.exports = function createAposBot(api) {
             return Math.max(verticalDistance() * 0.5, floor);
         }
 
-        /**
-         * Whether the pieces should be brought together rather than driven.
-         *
-         * Only once they may actually merge. Before that a destination between
-         * them is two cells pressed against each other going nowhere, which is
-         * every bit as stopped as it sounds and lasts the whole timer.
-         */
         merging(view) {
             return view.mine.length > 1 && this.mergeLeft <= 0;
         }
 
-        /**
-         * Closest the destination may sit along a direction, which is past the
-         * last of our own cells that way.
-         *
-         * A pointer inside a cell is a cell that has stopped, and a pointer
-         * behind one is a cell told to turn round, so the point has to clear
-         * all of them in the direction of travel. How far that is depends on
-         * the direction and on how spread out we are, which is why it is
-         * measured rather than picked. A fixed number has to cover the worst
-         * case, and the worst case is being in eight pieces across half a
-         * screen: every destination goes out that far whether or not anything
-         * is there, and one cell on its own can never be aimed at anything.
-         */
         floor(view, ux, uy) {
             let floor = 0;
             for (const cell of view.mine) {
@@ -5277,18 +4397,6 @@ module.exports = function createAposBot(api) {
             return floor;
         }
 
-        /**
-         * The best heading whose line no piece of ours has to fight through.
-         *
-         * Falling back to a bearing when nothing is worth arriving at is fine
-         * right up until the bearing is the one `commit` just refused. A
-         * pointer down it moves every cell we own, and the small fast ones
-         * reach whatever is in the way first, which is how a player with four
-         * cells feeds three of them to something the big one was only ever
-         * going to eat. Headings are tried by value, so this gives up as
-         * little as it has to, and it keeps the first one when they all cross,
-         * since standing still is not safer than moving.
-         */
         clearHeading(view, best, stride) {
             const reach = this.clearReach(view, best, stride);
             if (reach > 0) {
@@ -5296,28 +4404,11 @@ module.exports = function createAposBot(api) {
                 return { index: best, reach };
             }
 
-            // The way round it is already taking, while that still works.
-            //
-            // Which headings are clear changes from frame to frame once we are
-            // surrounded, so choosing afresh every tick swings the aim across
-            // the compass while the cell stands in the middle of it going
-            // nowhere. A way round is something to follow until it stops
-            // working, and it stops working when it is blocked or when the
-            // heading it was going round comes clear again.
             if (this.detour !== null) {
                 const held = this.clearReach(view, this.detour, stride);
                 if (held > 0) return { index: this.detour, reach: held };
             }
 
-            // A new one gives up as little of the direction as it has to.
-            // Sorting the whole compass by value instead hands back a heading
-            // pointing anywhere at all, and going round something is an angle
-            // rather than a score.
-            //
-            // Which way round is settled by the scan, or by the way it was
-            // already going if it was going one way. Losing a detour on the
-            // left and picking one up on the right is the same swing this is
-            // here to stop, taken one blocked frame at a time.
             const value = this.value;
             const side = this.sideOf(best);
             for (let step = 1; step <= DIRECTIONS / 2; step++) {
@@ -5337,18 +4428,6 @@ module.exports = function createAposBot(api) {
             return { index: best, reach: stride };
         }
 
-        /**
-         * How far down a heading we can go before a piece of ours would have
-         * to swim through something, either the whole stride or a step.
-         *
-         * A bearing whose far end sits in a mouth is not a bearing to turn
-         * around from. Most of it is open, and the destination is what says
-         * how much of it we take: turning instead is how a bot with food ahead
-         * of it and a big player beyond the food spends the game facing the
-         * other way, and how it swaps ends every time the far point crosses
-         * and clears again.
-         */
-        /** Which way round the detour it is holding goes, 0 for none. */
         sideOf(best) {
             if (this.detour === null) return 0;
             let step = this.detour - best;
@@ -5367,27 +4446,12 @@ module.exports = function createAposBot(api) {
             return 0;
         }
 
-        /** Where a heading puts the destination, and draws the line. */
         aim(view, ux, uy, distance) {
             const at = this.point(view, ux, uy, distance);
             if (this.drawing) drawLine(view.centre.x, view.centre.y, at[0], at[1], 2);
             return at;
         }
 
-        /**
-         * The same point, without the drawing, for anything weighing one.
-         *
-         * Kept inside the map two different ways, depending on where the wall
-         * is. With the wall still ahead the point stops at it and the cell
-         * walks up to it, since a pellet lying against the edge is still a
-         * pellet. With the wall already at our edge a point on it is a point
-         * beside the cell, or behind it in a corner, and a pointer inside your
-         * own cell is a cell that has stopped. So there the heading keeps
-         * whatever part of it runs along the wall, at full stride, and a
-         * heading straight into the wall keeps going the way it last slid
-         * rather than reading a direction off the noise in a component that
-         * is nearly nothing.
-         */
         point(view, ux, uy, distance) {
             const minX = getMapStartX();
             const maxX = getMapEndX();
@@ -5445,13 +4509,6 @@ module.exports = function createAposBot(api) {
             }
         }
 
-        // --------------------------------------------------------- the splits
-
-        /**
-         * Splitting onto prey doubles our reach for a second and halves what
-         * either piece can survive, so it wants a target we beat twice over,
-         * room to land, and nobody nearby who eats halves.
-         */
         planSplit(view, now, pressure) {
             if (!this.aggressive) return null;
             if (pressure > AGGRO_PRESSURE) return null;
@@ -5462,13 +4519,6 @@ module.exports = function createAposBot(api) {
             const mass = view.bigMass;
             if (mass < SPLIT_MIN_MASS * 2) return null;
 
-            // How far a half can actually eat something. The throw carries its
-            // centre 710 from ours and its mouth reaches its own radius past
-            // that, so the reach grows with the half rather than with the cell
-            // that threw it. Measuring it off our own size instead reads a big
-            // cell as able to throw a hundred units further than it can, which
-            // is a split that lands just short of a meal and pays for it in
-            // half the mass and a merge timer.
             const half = sizeOf(mass / 2);
             const range = half + SPLIT_REACH * SPLIT_TRUST;
             const ours = this.ourSpeed(view);
@@ -5479,17 +4529,11 @@ module.exports = function createAposBot(api) {
                 const target = this.lead(entry, cell);
                 const distance = span(target.x, target.y, cell.x, cell.y);
                 if (distance > range) continue;
-                // Something standing still a step away can be walked onto,
-                // which keeps the mass in one piece and the merge timer at
-                // zero. Further off than a step, a split is there first.
                 if (ours > 0 &&
                     this.speedOf(entry.id) < ours * SPLIT_CHASE &&
                     distance - cell.size < ours * SPLIT_WALK) {
                     continue;
                 }
-                // Aiming at it moves every cell we own at it, and the small
-                // ones get there first. Something the big cell eats for lunch
-                // can still be waiting for those.
                 if (this.crosses(view, target.x, target.y)) continue;
                 if (!this.splitIsSafe(view, cell, target)) continue;
                 const haul = this.haul(view, entry, target, half, mass);
@@ -5523,17 +4567,9 @@ module.exports = function createAposBot(api) {
             } else {
                 this.state = 'hunt';
             }
-            // Past the target, so the pieces carry through it rather than
-            // pulling up on top of it.
             return [cell.x + (dx / length) * range, cell.y + (dy / length) * range];
         }
 
-        /**
-         * What a half landing on this one would eat: it, and every other
-         * piece a half beats whose centre is inside the half where it lands.
-         * A player broken into eight is eight crumbs that are not worth a
-         * split each and one meal that is.
-         */
         haul(view, entry, target, half, mass) {
             let total = entry.mass;
             for (const other of view.prey) {
@@ -5546,14 +4582,11 @@ module.exports = function createAposBot(api) {
             return total;
         }
 
-        /** Where a target will be by the time a split gets there. */
         lead(entry, cell) {
             if (!entry.vx && !entry.vy) {
                 return { x: entry.x, y: entry.y, mass: entry.mass };
             }
             const distance = span(entry.x, entry.y, cell.x, cell.y);
-            // A split covers its 710 in about a second, so lead by the share of
-            // that second the target is away.
             const ahead = Math.min(1000, (distance / SPLIT_REACH) * 1000);
             return {
                 x: entry.x + (entry.vx || 0) * ahead,
@@ -5562,11 +4595,6 @@ module.exports = function createAposBot(api) {
             };
         }
 
-        /**
-         * Whether both halves survive it: nothing that eats a half within reach
-         * of where one lands or where the other stays, and no virus in the
-         * flight path to break the flying one up.
-         */
         splitIsSafe(view, cell, target) {
             const half = massOf(cell) / 2;
             for (const enemy of view.enemies) {
@@ -5595,23 +4623,7 @@ module.exports = function createAposBot(api) {
             return true;
         }
 
-        // ----------------------------------------------------- the virus shot
-
-        /**
-         * Feeding a virus.
-         *
-         * Eight pellets into a virus fires it along the line they came in on,
-         * and a player it lands on comes apart. It is the one thing that
-         * touches somebody too big to fight, and it costs the mass of the
-         * pellets whether or not it connects, so the setup has to be straight
-         * and the target has to be worth it.
-         */
         planPop(view, now) {
-            // One cell only. Every press ejects from every cell we own, so in
-            // three cells a shot costs three times what it costs in one, and
-            // the pellets the other two throw go wherever they were standing
-            // when they threw them, which on a bad day is into the same virus
-            // and fires it back through us.
             if (!this.aggressive || view.mine.length > 1) {
                 this.feeding = null;
                 this.staging = null;
@@ -5622,10 +4634,6 @@ module.exports = function createAposBot(api) {
                 if (held) return held;
                 this.feeding = null;
             }
-            // A walk already under way holds through the same contact a feed
-            // does, and whoever it was for is rested when it drops, since a
-            // walk that stops at the line and starts again at the next scan
-            // is a cell going back and forth beside a virus.
             const limit = this.staging ? POP_CONTACT_HOLD : POP_CONTACT;
             if (
                 this.contact > limit ||
@@ -5636,16 +4644,12 @@ module.exports = function createAposBot(api) {
                 return null;
             }
 
-            // Already on the way round one.
             if (this.staging) {
                 const walk = this.holdStation(view, now);
                 if (walk) return walk;
                 this.restStage(now);
             }
 
-            // Every virus against every player, which is not worth doing on
-            // every frame of a 60fps loop for a setup that turns up once a
-            // minute.
             if (now - this.popScan < POP_SCAN) return null;
             this.popScan = now;
 
@@ -5674,11 +4678,6 @@ module.exports = function createAposBot(api) {
             return null;
         }
 
-        /**
-         * Gives up the walk round a virus, and leaves whoever it was for alone
-         * for a while. A walk that made its line is already a feed by the time
-         * this is asked, and that one is dropped on its own terms.
-         */
         restStage(now) {
             if (this.staging) {
                 this.stageRest.set(this.staging.enemy, now + POP_STAGE_REST);
@@ -5687,10 +4686,6 @@ module.exports = function createAposBot(api) {
             this.feeding = null;
         }
 
-        /**
-         * Somebody worth a virus: big enough for one to break, and not
-         * something a split of ours would simply eat.
-         */
         popWorthy(view, enemy, now) {
             if (enemy.id === null || enemy.mass < POP_MIN_ENEMY) return false;
             if (view.bigMass / 2 >= enemy.grown * SPLIT_KILL_RATIO) return false;
@@ -5701,16 +4696,6 @@ module.exports = function createAposBot(api) {
             return true;
         }
 
-        /**
-         * Walking round a virus until it stands between us and somebody too
-         * big to fight.
-         *
-         * The aim steps along the ring around the virus towards the far side
-         * rather than going straight at it. The straight line to the far side
-         * runs through the virus, and every cell we own takes that line, so
-         * aiming across it is asking to be broken into eight pieces in front
-         * of the player we were setting the shot up for.
-         */
         holdStation(view, now) {
             const staging = this.staging;
             if (now - staging.since > POP_STAGE_TIMEOUT) return null;
@@ -5721,7 +4706,6 @@ module.exports = function createAposBot(api) {
 
             const cell = view.big;
             if (this.popLine(cell, virus, enemy)) {
-                // Made. From here it is an ordinary feed.
                 this.feeding = {
                     virus: virus.id, enemy: enemy.id,
                     fed: this.fedInto(virus.id, now), last: 0, since: now,
@@ -5742,9 +4726,6 @@ module.exports = function createAposBot(api) {
             if (turn > POP_ARC) turn = POP_ARC;
             else if (turn < -POP_ARC) turn = -POP_ARC;
 
-            // A shorter step when the long one would take a piece of ours
-            // through something, since giving up the whole setup over one
-            // crowded frame is how a plan that takes seconds never finishes.
             for (const share of [1, 0.5, 0.25]) {
                 const angle = here + turn * share;
                 const x = virus.x + Math.cos(angle) * stand;
@@ -5762,15 +4743,6 @@ module.exports = function createAposBot(api) {
             return null;
         }
 
-        /**
-         * A virus with somebody worth firing it at behind it, near enough to
-         * be worth walking round.
-         *
-         * Anybody a virus would break and a split of ours would not simply
-         * eat. Against somebody bigger the shot is what we have instead of a
-         * fight, and against somebody our own size it is sixteen pieces where
-         * there was one player, most of them lunch.
-         */
         findStation(view, now) {
             const cell = view.big;
             let best = null;
@@ -5794,29 +4766,6 @@ module.exports = function createAposBot(api) {
             return best;
         }
 
-        /**
-         * Sitting in a virus.
-         *
-         * One we are too small to pop is cover, and the middle of it is the
-         * best part: whoever is chasing us is bigger than it, so following us
-         * in costs them the game. The field already leans this way, and
-         * leaning is not arriving. A cell parked beside a virus is a cell
-         * that is merely near one.
-         */
-        /**
-         * Standing on a virus that fits underneath us.
-         *
-         * Between covering a virus and coming apart on it there is a band
-         * about 25 mass wide: wide enough to hide it and still too small for
-         * it to break us. A cell sitting in that band looks like a free meal
-         * with nothing under it, and anything big enough to want the meal is
-         * big enough to come apart on what is under it.
-         *
-         * Being eaten along with it is not the plan. We stand while they close
-         * and step round to the far side once they are committed, which puts
-         * the virus between us and leaves us standing next to whatever it
-         * makes of them.
-         */
         planLure(view, now) {
             if (!this.aggressive || view.mine.length !== 1 ||
                 now < this.lureRest) {
@@ -5832,10 +4781,6 @@ module.exports = function createAposBot(api) {
             let virus = null;
             if (this.luring) {
                 if (now - this.luring.since > LURE_TIMEOUT) {
-                    // Nobody took it. Resting rather than simply dropping it,
-                    // since the same virus is still the nearest one and this
-                    // would otherwise start again on the next tick and stand
-                    // there for the rest of the game.
                     this.lureRest = now + LURE_REST;
                     this.luring = null;
                 } else {
@@ -5849,8 +4794,6 @@ module.exports = function createAposBot(api) {
                 return null;
             }
 
-            // Somebody worth standing still for: big enough to want us, and
-            // big enough to come apart on what we are standing on.
             const bite = massOf(virus) * EAT_RATIO;
             let mark = null;
             let closest = LURE_RANGE;
@@ -5892,10 +4835,6 @@ module.exports = function createAposBot(api) {
         planHide(view) {
             if (view.bigMass > VIRUS_MASS * EAT_RATIO) return null;
             if (!this.beingChased) return null;
-            // Every one of them, not merely one of them. A virus stops what is
-            // too big for it and nothing else, so parking in one while
-            // something small enough to follow us in is after us is standing
-            // still in front of the one thing the cover does not cover.
             for (const threat of view.threats) {
                 for (const cell of view.mine) {
                     if (this.grownFor(threat, cell) < massOf(cell) * THREAT_RATIO) {
@@ -5913,16 +4852,6 @@ module.exports = function createAposBot(api) {
             return [best.x, best.y];
         }
 
-        /**
-         * Pouring the pieces into the biggest one.
-         *
-         * The pointer goes on the big cell and every press throws from every
-         * piece at it. The pieces walk in on the same pointer, so a pour
-         * gathers as it goes. It is for one thing: a big cell that is one
-         * pour short of a split on somebody, or of outweighing somebody it
-         * could not eat, and it only runs while nothing is pressing, since
-         * the whole player stands on one spot to do it.
-         */
         planPour(view, now, pressure) {
             if (!this.aggressive || view.mine.length < 3 ||
                 this.mergeLeft < POUR_MERGE_FAR || now < this.pourRest ||
@@ -5957,8 +4886,6 @@ module.exports = function createAposBot(api) {
                 this.pourRest = now + POUR_REST;
                 return null;
             }
-            // The pellets go wherever the pointer is, so nothing is thrown
-            // until it is already on the big cell.
             const onBig =
                 span(getPointX(), getPointY(), big.x, big.y) < big.size;
             if (onBig && now - this.pouring.last >= EJECT_INTERVAL) {
@@ -5973,11 +4900,6 @@ module.exports = function createAposBot(api) {
             return [big.x, big.y];
         }
 
-        /**
-         * Somebody the big cell could take once it had the pour, and could
-         * not take now: prey a half would then beat, or a player it would
-         * then outweigh. Nobody, and the pour is mass thrown away for nothing.
-         */
         pourFor(view, poured) {
             let best = null;
             let closest = PREY_REACH;
@@ -5996,7 +4918,6 @@ module.exports = function createAposBot(api) {
             return best;
         }
 
-        /** The nearest virus no cell of ours has to swim through anything for. */
         nearestVirus(view, range, ok) {
             const cell = view.big;
             let best = null;
@@ -6012,21 +4933,6 @@ module.exports = function createAposBot(api) {
             return best;
         }
 
-        /**
-         * Whether something that could eat us is coming for us, rather than
-         * merely being big and standing about.
-         *
-         * Being inside somebody's split range says nothing about what they
-         * mean by it, and on a small cell almost everybody's split range
-         * covers us almost all of the time. Read that as being hunted and the
-         * bot spends the game in a virus, which is safe and is also how a
-         * 60 mass cell is still a 60 mass cell a minute later. What tells a
-         * chase from a crowd is that the gap is closing.
-         *
-         * Held briefly once it is true, since a chaser that pulls up outside
-         * and waits stops closing, and leaving cover because the thing outside
-         * it stopped walking is how the cover gets you killed.
-         */
         chased(view, now) {
             const ours = this.ourSpeed(view);
             const pursuit = this.pursuit;
@@ -6052,11 +4958,6 @@ module.exports = function createAposBot(api) {
                 }
                 if (!closing) continue;
                 seen.add(threat.id);
-                // How long it has been coming, not whether it is coming this
-                // frame. Everything on a busy screen is moving, and a third of
-                // everything is moving roughly at us at any moment, so one
-                // frame of it is a reading of the crowd rather than of anybody
-                // in particular.
                 let since = pursuit.get(threat.id);
                 if (since === undefined) pursuit.set(threat.id, (since = now));
                 if (now - since >= HUNT_SUSTAIN) chased = true;
@@ -6066,15 +4967,11 @@ module.exports = function createAposBot(api) {
             }
 
             if (chased) this.huntedAt = now;
-            // A chaser that pulls up outside cover and waits stops closing,
-            // and leaving cover because the thing outside it stopped walking
-            // is how the cover gets you killed.
             return chased ||
                 (this.huntedAt > 0 && now - this.huntedAt < HIDE_HOLD &&
                     this.nearThreat(view, HUNT_RANGE));
         }
 
-        /** Whether anything that could eat us is still within a range of us. */
         nearThreat(view, range) {
             for (const threat of view.threats) {
                 for (const cell of view.mine) {
@@ -6089,7 +4986,6 @@ module.exports = function createAposBot(api) {
             return false;
         }
 
-        /** Keeps feeding while the line holds, and gives up when it does not. */
         holdPop(view, now) {
             const feeding = this.feeding;
             if (now - feeding.since > POP_TIMEOUT) return null;
@@ -6105,10 +5001,6 @@ module.exports = function createAposBot(api) {
             const line = this.popLine(cell, virus, enemy);
             if (!line) return null;
 
-            // A pellet goes wherever the pointer is, and on the tick a feed
-            // starts the pointer is wherever the walk left it, which after
-            // backing off the virus is straight away from it. So no press
-            // until the aim is on the line.
             const aimX = getPointX() - cell.x;
             const aimY = getPointY() - cell.y;
             const aimLength = Math.sqrt(aimX * aimX + aimY * aimY) || 1;
@@ -6128,16 +5020,10 @@ module.exports = function createAposBot(api) {
                 drawCircle(virus.x, virus.y, virus.size + 30, 4);
             }
 
-            // Just outside our own cell, so the pellets go the right way while
-            // the cell itself stays where it is.
             const hold = cell.size * 0.9;
             return [cell.x + line.ux * hold, cell.y + line.uy * hold];
         }
 
-        /**
-         * What a virus has had from us lately, which is where a feed on it
-         * carries on from. Nothing once the memory has lapsed.
-         */
         fedInto(virusId, now) {
             const entry = this.fedViruses.get(virusId);
             if (!entry) return 0;
@@ -6148,12 +5034,10 @@ module.exports = function createAposBot(api) {
             return entry.fed;
         }
 
-        /** A virus that has had the full feed and is still there will not fire. */
         dud(virus, now) {
             return this.fedInto(virus.id, now) >= VIRUS_FEED;
         }
 
-        /** The straightest us-virus-enemy line on the screen, if there is one. */
         findPop(view, now) {
             const cell = view.big;
             let best = null;
@@ -6171,7 +5055,6 @@ module.exports = function createAposBot(api) {
             return best;
         }
 
-        /** Whether we can put a pellet in that virus and it in that player. */
         popLine(cell, virus, enemy) {
             const dvx = virus.x - cell.x;
             const dvy = virus.y - cell.y;
@@ -6182,11 +5065,12 @@ module.exports = function createAposBot(api) {
             const dex = enemy.x - virus.x;
             const dey = enemy.y - virus.y;
             const toEnemy = Math.sqrt(dex * dex + dey * dey) || 1;
-            if (toEnemy > POP_RANGE) return null;
+            // v7: the pellet travels EJECT_REACH from us before it stops, so
+            // the virus carries it the rest of the way. A shot at a target
+            // further than the virus can carry it is mass thrown at nothing,
+            // and the old POP_RANGE of 900 was 240 past where it lands.
+            if (toEnemy > VIRUS_REACH) return null;
 
-            // Far enough off that they cannot simply walk into us while we
-            // stand there feeding. Their split range reaches most of this, so
-            // it is the pressure gate above that calls that off, not this.
             const gap = span(enemy.x, enemy.y, cell.x, cell.y);
             if (gap < enemy.size + cell.size + 300) return null;
 
@@ -6200,9 +5084,7 @@ module.exports = function createAposBot(api) {
 
     return new AposBot();
 };
-
-};
-
+    
 __modules[10] = function (module, exports, require) {
 'use strict';
 
